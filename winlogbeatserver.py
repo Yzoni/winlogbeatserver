@@ -7,6 +7,8 @@ import parse
 from multiprocessing import Process, Queue
 import responses
 import logging
+import os
+import argparse
 
 log = logging.getLogger(__name__)
 
@@ -33,14 +35,16 @@ PARSE = True
 queue = Queue()
 
 
-def write_log(queue_data):
+def write_log(queue_data, base_path):
     log.info(' * Write log process started')
+    if not os.path.exists(base_path):
+        raise ValueError('Save directory does not exist: {}'.format(base_path))
     for d in iter(queue_data.get, None):
         log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
         if PARSE:
-            with open('thread.csv', 'a') as thread_f, \
-                    open('syscall.csv', 'a') as syscall_f, \
-                    open('status.csv', 'a') as status_f:
+            with open(os.path.join(base_path, 'thread.csv'), 'a') as thread_f, \
+                    open(os.path.join(base_path, 'syscall.csv'), 'a') as syscall_f, \
+                    open(os.path.join(base_path, 'status.csv'), 'a') as status_f:
                 if len(d) > 100:
                     type, p = parse.parse_csv(d)
                     if type == parse.EventTypes.UNKNOWN:
@@ -96,9 +100,13 @@ def start_flask():
 
 class WinlogBeat:
 
-    def __init__(self):
+    def __init__(self, output_dir):
+        """
+        :param output_dir: Directory to write the csv files to.
+        """
         self.main_process = None
         self.parse_process = None
+        self.output_dir = output_dir
 
     def start(self):
         app = start_flask()
@@ -112,7 +120,7 @@ class WinlogBeat:
         self.main_process = Process(target=app.run, kwargs=kwargs)
         self.main_process.start()
 
-        self.parse_process = Process(target=write_log, args=(queue,))
+        self.parse_process = Process(target=write_log, args=(queue, self.output_dir))
         self.parse_process.start()
 
     def queue_count(self):
@@ -126,8 +134,17 @@ class WinlogBeat:
         self.parse_process.terminate()
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Server for capturing specific winlogbeat output')
+    parser.add_argument('out', type=str,
+                        help='Output directory')
+    args = parser.parse_args()
+    return args
+
+
 def main():
-    wlb = WinlogBeat()
+    args = parse_args()
+    wlb = WinlogBeat(args.out)
     wlb.start()
 
 
