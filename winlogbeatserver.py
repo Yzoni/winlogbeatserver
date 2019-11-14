@@ -64,7 +64,7 @@ def write_log(queue_data, base_path):
 
 class Bulk(Resource):
     def post(self):
-        data = request.get_data().decode().rstrip().split('\n')
+        data = request.get_data().decode('utf-8').rstrip().split('\n')
         for d in data:
             queue.put(d)
 
