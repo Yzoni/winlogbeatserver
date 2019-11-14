@@ -100,21 +100,23 @@ def start_flask():
 
 class WinlogBeat:
 
-    def __init__(self, output_dir):
+    def __init__(self, output_dir, debug=False, port=5000):
         """
         :param output_dir: Directory to write the csv files to.
         """
         self.main_process = None
         self.parse_process = None
         self.output_dir = output_dir
+        self.debug = debug
+        self.port = port
 
     def start(self):
         app = start_flask()
         kwargs = {
             'debug': 'debug',
-            'use_reloader': False,
+            'use_reloader': self.debug,
             'host': '0.0.0.0',
-            'port': 5000
+            'port': self.port
         }
 
         self.main_process = Process(target=app.run, kwargs=kwargs)
