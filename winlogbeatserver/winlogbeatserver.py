@@ -9,6 +9,7 @@ import responses
 import logging
 import os
 import argparse
+import io
 
 log = logging.getLogger(__name__)
 
@@ -40,12 +41,12 @@ def write_log(queue_data, base_path):
     if not os.path.exists(base_path):
         raise ValueError('Save directory does not exist: {}'.format(base_path))
     for d in iter(queue_data.get, None):
-        log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
+        # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
         if PARSE:
-            with open(os.path.join(base_path, 'thread.csv'), 'a') as thread_f, \
-                    open(os.path.join(base_path, 'process.csv'), 'a') as process_f, \
-                    open(os.path.join(base_path, 'syscall.csv'), 'a') as syscall_f, \
-                    open(os.path.join(base_path, 'status.csv'), 'a') as status_f:
+            with io.open(os.path.join(base_path, 'thread.csv'), 'a', encoding='utf8') as thread_f, \
+                    io.open(os.path.join(base_path, 'process.csv'), 'a', encoding='utf8') as process_f, \
+                    io.open(os.path.join(base_path, 'syscall.csv'), 'a', encoding='utf8') as syscall_f, \
+                    io.open(os.path.join(base_path, 'status.csv'), 'a', encoding='utf8') as status_f:
                 type, p = parse.parse_csv(d)
                 if type == parse.EventTypes.UNKNOWN:
                     continue
