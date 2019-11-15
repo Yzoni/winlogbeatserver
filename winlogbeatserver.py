@@ -113,8 +113,8 @@ class WinlogBeat:
     def start(self):
         app = start_flask()
         kwargs = {
-            'debug': 'debug',
-            'use_reloader': self.debug,
+            'debug': self.debug,
+            'use_reloader': False,
             'host': '0.0.0.0',
             'port': self.port
         }
