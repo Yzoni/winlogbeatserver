@@ -13,7 +13,7 @@ class EventTypes:
 
 
 def parse_csv(data):
-    j = json.loads(str(data))
+    j = json.loads(data)
     winlog = j['winlog']
     if not winlog['provider_name'] == 'Call Logger':
         return EventTypes.UNKNOWN, None
