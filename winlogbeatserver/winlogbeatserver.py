@@ -10,6 +10,8 @@ import logging
 import os
 import argparse
 import io
+import time
+import signal
 
 log = logging.getLogger(__name__)
 
@@ -111,6 +113,8 @@ class WinlogBeat:
         """
         self.main_process = None
         self.parse_process = None
+        self.main_process_pid = None
+        self.parse_process_pid = None
         self.output_dir = output_dir
         self.debug = debug
         self.port = port
@@ -126,9 +130,11 @@ class WinlogBeat:
 
         self.main_process = Process(target=app.run, kwargs=kwargs)
         self.main_process.start()
+        self.main_process_pid = self.main_process.pid
 
         self.parse_process = Process(target=write_log, args=(queue, self.output_dir))
         self.parse_process.start()
+        self.parse_process_pid = self.main_process.pid
 
     def queue_size(self):
         return queue.qsize()
@@ -136,9 +142,31 @@ class WinlogBeat:
     def stop(self):
         if not self.main_process or not self.parse_process:
             raise RuntimeError('Winlogbeatserver: Processes not started')
+        try:
+            self.main_process.terminate()
+            self.parse_process.terminate()
+        except Exception as e:
+            log.error('Error occurred while terminating Winlogbeat child processes: {}'.format(e))
 
-        self.main_process.terminate()
-        self.parse_process.terminate()
+        if self._pid_exists(self.main_process_pid):
+            log.info('Winlogbeat main process still alive... Killing again...')
+            os.kill(self.main_process_pid, signal.SIGTERM)
+
+        if self._pid_exists(self.parse_process_pid):
+            log.info('Winlogbeat parse process still alive... Killing again...')
+            os.kill(self.parse_process_pid, signal.SIGTERM)
+
+        self.main_process_pid = None
+        self.parse_process_pid = None
+
+    def _pid_exists(self, pid):
+        """ Check For the existence of a unix pid. """
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        else:
+            return True
 
 
 def parse_args():
