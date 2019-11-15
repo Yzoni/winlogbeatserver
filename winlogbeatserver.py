@@ -43,18 +43,20 @@ def write_log(queue_data, base_path):
         log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
         if PARSE:
             with open(os.path.join(base_path, 'thread.csv'), 'a') as thread_f, \
+                    open(os.path.join(base_path, 'process.csv'), 'a') as process_f, \
                     open(os.path.join(base_path, 'syscall.csv'), 'a') as syscall_f, \
                     open(os.path.join(base_path, 'status.csv'), 'a') as status_f:
-                if len(d) > 100:
-                    type, p = parse.parse_csv(d)
-                    if type == parse.EventTypes.UNKNOWN:
-                        continue
-                    if type == parse.EventTypes.THREAD:
-                        thread_f.write(p)
-                    elif type == parse.EventTypes.SYSCALL:
-                        syscall_f.write(p)
-                    elif type == parse.EventTypes.STATUS:
-                        status_f.write(p)
+                type, p = parse.parse_csv(d)
+                if type == parse.EventTypes.UNKNOWN:
+                    continue
+                elif type == parse.EventTypes.THREAD:
+                    thread_f.write(p)
+                elif type == parse.EventTypes.PROCESS:
+                    process_f.write(p)
+                elif type == parse.EventTypes.SYSCALL:
+                    syscall_f.write(p)
+                elif type == parse.EventTypes.STATUS:
+                    status_f.write(p)
         else:
             with open('out.jsonlines', 'a') as f:
                 if len(d) > 100:
@@ -66,7 +68,9 @@ class Bulk(Resource):
     def post(self):
         data = request.get_data().decode('utf-8').rstrip().split('\n')
         for d in data:
-            queue.put(d)
+            # Do use the document 'header'
+            if len(d) > 100:
+                queue.put(d)
 
 
 class Template(Resource):
@@ -125,7 +129,7 @@ class WinlogBeat:
         self.parse_process = Process(target=write_log, args=(queue, self.output_dir))
         self.parse_process.start()
 
-    def queue_count(self):
+    def queue_size(self):
         return queue.qsize()
 
     def stop(self):
