@@ -48,7 +48,7 @@ def write_log(queue_data, base_path):
             open(os.path.join(base_path, 'status.csv'), 'w') as status_f, \
             io.open(os.path.join(base_path, 'debug.jsonl'), 'w') as debugl:
         for d in iter(queue_data.get, None):
-            debugl.write('{}\n'.format(d))
+            debugl.write(u'{}\n'.format(d))
 
             # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
             type, p = parse.parse_csv(d)
