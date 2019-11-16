@@ -10,6 +10,7 @@ import logging
 import os
 import argparse
 import signal
+import io
 
 log = logging.getLogger(__name__)
 
@@ -44,8 +45,11 @@ def write_log(queue_data, base_path):
     with open(os.path.join(base_path, 'thread.csv'), 'w') as thread_f, \
             open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
             open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
-            open(os.path.join(base_path, 'status.csv'), 'w') as status_f:
+            open(os.path.join(base_path, 'status.csv'), 'w') as status_f, \
+            io.open('debug.jsonl', 'w') as debugl:
         for d in iter(queue_data.get, None):
+            debugl.write('{}\n'.format(d))
+
             # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
             type, p = parse.parse_csv(d)
             if type == parse.EventTypes.UNKNOWN:

@@ -32,7 +32,7 @@ def parse_csv(data):
         if int(event_data['opcode']) == EventTypes.THREAD:
             try:
                 name = event_data.get('name').encode('ascii')
-            except UnicodeEncodeError:
+            except:
                 name = ''
             ppid = event_data.get('ppid')
             pid = event_data.get('pid')
@@ -44,7 +44,7 @@ def parse_csv(data):
         if int(event_data['opcode']) == EventTypes.PROCESS:
             try:
                 name = event_data.get('name').encode('ascii')
-            except UnicodeEncodeError:
+            except:
                 name = ''
             ppid = event_data.get('ppid')
             pid = event_data.get('pid')
