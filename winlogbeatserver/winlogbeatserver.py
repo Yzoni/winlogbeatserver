@@ -46,7 +46,7 @@ def write_log(queue_data, base_path):
             open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
             open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
             open(os.path.join(base_path, 'status.csv'), 'w') as status_f, \
-            io.open('debug.jsonl', 'w') as debugl:
+            io.open(os.path.join(base_path, 'debug.jsonl'), 'w') as debugl:
         for d in iter(queue_data.get, None):
             debugl.write('{}\n'.format(d))
 
