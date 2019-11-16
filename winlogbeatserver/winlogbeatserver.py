@@ -10,7 +10,6 @@ import logging
 import os
 import argparse
 import io
-import time
 import signal
 
 log = logging.getLogger(__name__)
@@ -42,29 +41,25 @@ def write_log(queue_data, base_path):
     log.info(' * Write log process started')
     if not os.path.exists(base_path):
         raise ValueError('Save directory does not exist: {}'.format(base_path))
-    for d in iter(queue_data.get, None):
-        # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
-        if PARSE:
-            with io.open(os.path.join(base_path, 'thread.csv'), 'a', encoding='utf8') as thread_f, \
-                    io.open(os.path.join(base_path, 'process.csv'), 'a', encoding='utf8') as process_f, \
-                    io.open(os.path.join(base_path, 'syscall.csv'), 'a', encoding='utf8') as syscall_f, \
-                    io.open(os.path.join(base_path, 'status.csv'), 'a', encoding='utf8') as status_f:
-                type, p = parse.parse_csv(d)
-                if type == parse.EventTypes.UNKNOWN:
-                    continue
-                elif type == parse.EventTypes.THREAD:
-                    thread_f.write(p)
-                elif type == parse.EventTypes.PROCESS:
-                    process_f.write(p)
-                elif type == parse.EventTypes.SYSCALL:
-                    syscall_f.write(p)
-                elif type == parse.EventTypes.STATUS:
-                    status_f.write(p)
-        else:
-            with open('out.jsonlines', 'a') as f:
-                if len(d) > 100:
-                    f.write('\n'.format(d))
-            return responses.bulk
+
+    with io.open(os.path.join(base_path, 'thread.csv'), 'w') as thread_f, \
+            io.open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
+            io.open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
+            io.open(os.path.join(base_path, 'status.csv'), 'w') as status_f:
+        for d in iter(queue_data.get, None):
+            # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
+            type, p = parse.parse_csv(d)
+            if type == parse.EventTypes.UNKNOWN:
+                continue
+            elif type == parse.EventTypes.THREAD:
+                thread_f.write(p)
+            elif type == parse.EventTypes.PROCESS:
+                process_f.write(p)
+            elif type == parse.EventTypes.SYSCALL:
+                syscall_f.write(p)
+            elif type == parse.EventTypes.STATUS:
+                status_f.write(p)
+
 
 
 class Bulk(Resource):

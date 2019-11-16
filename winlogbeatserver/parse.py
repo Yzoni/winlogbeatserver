@@ -22,33 +22,39 @@ def parse_csv(data):
         datatime = j['@timestamp']
         event_data = winlog['event_data']
 
-        csv_row = u'{}'.format(datatime)
+        csv_row = '{}'.format(datatime)
         if int(event_data['opcode']) == EventTypes.SYSCALL:
             pid = event_data.get('pid')
             tid = event_data.get('tid')
             syscall = event_data.get('syscall')
-            csv_row += u',{},{},{}\n'.format(pid, tid, syscall)
+            csv_row += ',{},{},{}\n'.format(pid, tid, syscall)
             return EventTypes.SYSCALL, csv_row
         if int(event_data['opcode']) == EventTypes.THREAD:
-            name = event_data.get('name')
+            try:
+                name = event_data.get('name').encode('ascii')
+            except UnicodeEncodeError:
+                name = ''
             ppid = event_data.get('ppid')
             pid = event_data.get('pid')
             tid = event_data.get('tid')
             newtid = event_data.get('newtid')
             created = event_data.get('created')
-            csv_row += u',"{}",{},{},{},{},{}\n'.format(name, ppid, pid, tid, newtid, created)
+            csv_row += ',"{}",{},{},{},{},{}\n'.format(name, ppid, pid, tid, newtid, created)
             return EventTypes.THREAD, csv_row
         if int(event_data['opcode']) == EventTypes.PROCESS:
-            name = event_data.get('name')
+            try:
+                name = event_data.get('name').encode('ascii')
+            except UnicodeEncodeError:
+                name = ''
             ppid = event_data.get('ppid')
             pid = event_data.get('pid')
             tid = event_data.get('tid')
             created = event_data.get('created')
-            csv_row += u',"{}",{},{},{},{}\n'.format(name, ppid, pid, tid, created)
+            csv_row += ',"{}",{},{},{},{}\n'.format(name, ppid, pid, tid, created)
             return EventTypes.THREAD, csv_row
         if int(event_data['opcode']) == EventTypes.STATUS:
             status = event_data.get('logging_started')
-            csv_row += u',{}\n'.format(status)
+            csv_row += ',{}\n'.format(status)
             return EventTypes.STATUS, csv_row
         else:
             return EventTypes.UNKNOWN, None
