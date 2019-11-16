@@ -9,7 +9,6 @@ import responses
 import logging
 import os
 import argparse
-import io
 import signal
 
 log = logging.getLogger(__name__)
@@ -42,10 +41,10 @@ def write_log(queue_data, base_path):
     if not os.path.exists(base_path):
         raise ValueError('Save directory does not exist: {}'.format(base_path))
 
-    with io.open(os.path.join(base_path, 'thread.csv'), 'w') as thread_f, \
-            io.open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
-            io.open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
-            io.open(os.path.join(base_path, 'status.csv'), 'w') as status_f:
+    with open(os.path.join(base_path, 'thread.csv'), 'w') as thread_f, \
+            open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
+            open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
+            open(os.path.join(base_path, 'status.csv'), 'w') as status_f:
         for d in iter(queue_data.get, None):
             # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
             type, p = parse.parse_csv(d)
@@ -58,6 +57,7 @@ def write_log(queue_data, base_path):
             elif type == parse.EventTypes.SYSCALL:
                 syscall_f.write(p)
             elif type == parse.EventTypes.STATUS:
+                print(p)
                 status_f.write(p)
 
 
