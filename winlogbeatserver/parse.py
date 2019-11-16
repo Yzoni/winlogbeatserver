@@ -36,7 +36,7 @@ def parse_csv(data):
             tid = event_data.get('tid')
             newtid = event_data.get('newtid')
             created = event_data.get('created')
-            csv_row += u',{},{},{},{},{},{}\n'.format(name, ppid, pid, tid, newtid, created)
+            csv_row += u',"{}",{},{},{},{},{}\n'.format(name, ppid, pid, tid, newtid, created)
             return EventTypes.THREAD, csv_row
         if int(event_data['opcode']) == EventTypes.PROCESS:
             name = event_data.get('name')
@@ -44,7 +44,7 @@ def parse_csv(data):
             pid = event_data.get('pid')
             tid = event_data.get('tid')
             created = event_data.get('created')
-            csv_row += u',{},{},{},{},{}\n'.format(name, ppid, pid, tid, created)
+            csv_row += u',"{}",{},{},{},{}\n'.format(name, ppid, pid, tid, created)
             return EventTypes.THREAD, csv_row
         if int(event_data['opcode']) == EventTypes.STATUS:
             status = event_data.get('logging_started')
