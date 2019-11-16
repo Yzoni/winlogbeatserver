@@ -149,17 +149,24 @@ class WinlogBeat:
             log.error('Error occurred while terminating Winlogbeat child processes: {}'.format(e))
 
         if self._pid_exists(self.main_process_pid):
-            log.info('Winlogbeat main process still alive... Killing again...')
-            os.kill(self.main_process_pid, signal.SIGTERM)
+            try:
+                log.info('Winlogbeat main process still alive... Killing again...')
+                os.kill(self.main_process_pid, signal.SIGTERM)
+            except OSError:
+                log.warning('Winlogbeat main process PID does not exist')
 
         if self._pid_exists(self.parse_process_pid):
-            log.info('Winlogbeat parse process still alive... Killing again...')
-            os.kill(self.parse_process_pid, signal.SIGTERM)
+            try:
+                log.info('Winlogbeat parse process still alive... Killing again...')
+                os.kill(self.parse_process_pid, signal.SIGTERM)
+            except OSError:
+                log.warning('Winlogbeat parse process PID does not exist')
 
         self.main_process_pid = None
         self.parse_process_pid = None
 
-    def _pid_exists(self, pid):
+    @staticmethod
+    def _pid_exists(pid):
         """ Check For the existence of a unix pid. """
         try:
             os.kill(pid, 0)
