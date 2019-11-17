@@ -103,7 +103,7 @@ def start_flask():
 
 class WinlogBeat:
 
-    def __init__(self, output_dir, debug=False, port=5000):
+    def __init__(self, output_dir, debug=True, port=5000):
         """
         :param output_dir: Directory to write the csv files to.
         """
@@ -176,13 +176,15 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Server for capturing specific winlogbeat output')
     parser.add_argument('out', type=str,
                         help='Output directory')
+    parser.add_argument('--debug', action='store_true',
+                        help='Enable debug')
     args = parser.parse_args()
     return args
 
 
 def main():
     args = parse_args()
-    wlb = WinlogBeat(args.out)
+    wlb = WinlogBeat(args.out, debug=args.debug)
     wlb.start()
 
 
