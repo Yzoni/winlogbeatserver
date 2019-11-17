@@ -11,6 +11,7 @@ import os
 import argparse
 import signal
 import sys
+import time
 
 log = logging.getLogger(__name__)
 
@@ -126,13 +127,13 @@ class WinlogBeat:
 
         self.main_process = Process(target=app.run, kwargs=kwargs)
         self.main_process.daemon = True
-        
+
         self.main_process.start()
         self.main_process_pid = self.main_process.pid
 
         self.parse_process = Process(target=write_log, args=(queue, self.output_dir))
         self.parse_process.daemon = True
-        
+
         self.parse_process.start()
         self.parse_process_pid = self.main_process.pid
 
@@ -140,30 +141,32 @@ class WinlogBeat:
         return queue.qsize()
 
     def stop(self):
-        if not self.main_process or not self.parse_process:
-            raise RuntimeError('Winlogbeatserver: Processes not started')
-        try:
-            self.main_process.join()
-            self.parse_process.join()
-        except Exception as e:
-            log.error('Error occurred while joining Winlogbeat child processes: {}'.format(e))
-
-        if self._pid_exists(self.main_process_pid):
-            try:
-                log.info('Winlogbeat main process still alive... Killing again...')
-                os.kill(self.main_process_pid, signal.SIGTERM)
-            except OSError:
-                log.warning('Winlogbeat main process PID does not exist')
-
-        if self._pid_exists(self.parse_process_pid):
-            try:
-                log.info('Winlogbeat parse process still alive... Killing again...')
-                os.kill(self.parse_process_pid, signal.SIGTERM)
-            except OSError:
-                log.warning('Winlogbeat parse process PID does not exist')
-
-        self.main_process_pid = None
-        self.parse_process_pid = None
+        exit(0)
+        # if not self.main_process or not self.parse_process:
+        #     raise RuntimeError('Winlogbeatserver: Processes not started')
+        # try:
+        #     self.main_process.terminate()
+        #     self.parse_process.terminate()
+        #     time.sleep(5)
+        # except Exception as e:
+        #     log.error('Error occurred while joining Winlogbeat child processes: {}'.format(e))
+        #
+        # if self._pid_exists(self.main_process_pid):
+        #     try:
+        #         log.info('Winlogbeat main process still alive... Killing again...')
+        #         os.kill(self.main_process_pid, signal.SIGTERM)
+        #     except OSError:
+        #         log.warning('Winlogbeat main process PID does not exist')
+        #
+        # if self._pid_exists(self.parse_process_pid):
+        #     try:
+        #         log.info('Winlogbeat parse process still alive... Killing again...')
+        #         os.kill(self.parse_process_pid, signal.SIGTERM)
+        #     except OSError:
+        #         log.warning('Winlogbeat parse process PID does not exist')
+        #
+        # self.main_process_pid = None
+        # self.parse_process_pid = None
 
     @staticmethod
     def _pid_exists(pid):
@@ -198,6 +201,8 @@ def main():
     
     wlb = WinlogBeat(args.out, debug=args.debug)
     wlb.start()
+    while True:
+        time.sleep(5)
 
 
 if __name__ == '__main__':
