@@ -56,11 +56,15 @@ def write_log(queue_data, base_path):
             open(os.path.join(base_path, filename_status), 'w', buffering=0) as status_f:
 
         started_waiting = time.time()
+        logcount = 0
         while True:
             if not queue_data.empty():
+                logcount += 1
                 started_waiting = time.time()
                 d = queue_data.get_nowait()
-                # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue_data.qsize()))
+                if logcount > 500:
+                    log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue_data.qsize()))
+                    logcount = 0
                 type, p = parse.parse_csv(d)
                 if type == parse.EventTypes.UNKNOWN:
                     continue
