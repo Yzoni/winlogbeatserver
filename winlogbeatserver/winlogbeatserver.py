@@ -12,7 +12,7 @@ import argparse
 import signal
 import sys
 import time
-import atexit
+
 log = logging.getLogger(__name__)
 
 
@@ -39,13 +39,14 @@ queue = Queue()
 
 def write_log(queue_data, base_path):
     log.info(' * Write log process started')
+    log.info(' * Writing to {}'.format(base_path))
     if not os.path.exists(base_path):
         raise ValueError('Save directory does not exist: {}'.format(base_path))
 
     with open(os.path.join(base_path, 'thread.csv'), 'w') as thread_f, \
             open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
             open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
-            open(os.path.join(base_path, 'status.csv'), 'w') as status_f:
+            open(os.path.join(base_path, 'status.csv'), 'w', buffering=0) as status_f:
         try:
             for d in iter(queue_data.get, None):
                 # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
@@ -63,7 +64,6 @@ def write_log(queue_data, base_path):
                     status_f.write(p)
         except Exception as e:
             log.info('Exception in writing log {}'.format(e))
-
 
 
 class Bulk(Resource):
@@ -112,8 +112,6 @@ class WinlogBeat:
         """
         self.main_process = None
         self.parse_process = None
-        self.main_process_pid = None
-        self.parse_process_pid = None
         self.output_dir = output_dir
         self.debug = debug
         self.port = port
@@ -135,13 +133,13 @@ class WinlogBeat:
         self.main_process.daemon = True
 
         self.main_process.start()
-        self.main_process_pid = self.main_process.pid
+        log.info('Main process pid {}'.format(self.main_process.pid))
 
         self.parse_process = Process(target=write_log, args=(queue, self.output_dir))
         self.parse_process.daemon = True
 
         self.parse_process.start()
-        self.parse_process_pid = self.main_process.pid
+        log.info('Parse process pid {}'.format(self.parse_process.pid))
 
     def queue_size(self):
         return queue.qsize()
@@ -155,23 +153,20 @@ class WinlogBeat:
             time.sleep(5)
         except Exception as e:
             log.error('Error occurred while joining Winlogbeat child processes: {}'.format(e))
-
-        if self._pid_exists(self.main_process_pid):
+        
+        if self.main_process.is_alive():
             try:
                 log.info('Winlogbeat main process still alive... Killing again...')
-                os.kill(self.main_process_pid, signal.SIGTERM)
+                os.kill(self.main_process.pid, signal.SIGKILL)
             except OSError:
                 log.warning('Winlogbeat main process PID does not exist')
 
-        if self._pid_exists(self.parse_process_pid):
+        if self.parse_process.is_alive():
             try:
                 log.info('Winlogbeat parse process still alive... Killing again...')
-                os.kill(self.parse_process_pid, signal.SIGTERM)
+                os.kill(self.parse_process.pid, signal.SIGKILL)
             except OSError:
                 log.warning('Winlogbeat parse process PID does not exist')
-
-        self.main_process_pid = None
-        self.parse_process_pid = None
 
     @staticmethod
     def _pid_exists(pid):
@@ -208,8 +203,11 @@ def main():
     
     try:
         wlb.start()
+        time.sleep(5)
+        wlb.stop()
         while True:
             time.sleep(5)
+        
     except Exception as e:
         log.info(e)
         log.info('Stopping server')
