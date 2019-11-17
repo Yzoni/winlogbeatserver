@@ -57,10 +57,9 @@ def write_log(queue_data, base_path):
 
         started_waiting = time.time()
         while True:
-            log.info('aaaa')
             if not queue_data.empty():
                 d = queue_data.get_nowait()
-                # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue_data.qsize()))
+                log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue_data.qsize()))
                 type, p = parse.parse_csv(d)
                 if type == parse.EventTypes.UNKNOWN:
                     continue
@@ -74,7 +73,7 @@ def write_log(queue_data, base_path):
                     logging.info('Found status')
                     status_f.write(p)
             time.sleep(1)
-            if time.time() - started_waiting > 15:
+            if time.time() - started_waiting > 60:
                 log.info('Wineventlog timeout waiting for data')
                 return
 
