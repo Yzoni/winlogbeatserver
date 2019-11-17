@@ -12,7 +12,7 @@ import argparse
 import signal
 import sys
 import time
-
+import atexit
 log = logging.getLogger(__name__)
 
 
@@ -34,7 +34,6 @@ class Policy(Resource):
         return responses.ack
 
 
-PARSE = True
 queue = Queue()
 
 
@@ -47,20 +46,23 @@ def write_log(queue_data, base_path):
             open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
             open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
             open(os.path.join(base_path, 'status.csv'), 'w') as status_f:
-        for d in iter(queue_data.get, None):
-            # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
-            type, p = parse.parse_csv(d)
-            if type == parse.EventTypes.UNKNOWN:
-                continue
-            elif type == parse.EventTypes.THREAD:
-                thread_f.write(p)
-            elif type == parse.EventTypes.PROCESS:
-                process_f.write(p)
-            elif type == parse.EventTypes.SYSCALL:
-                syscall_f.write(p)
-            elif type == parse.EventTypes.STATUS:
-                logging.info('Found status')
-                status_f.write(p)
+        try:
+            for d in iter(queue_data.get, None):
+                # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
+                type, p = parse.parse_csv(d)
+                if type == parse.EventTypes.UNKNOWN:
+                    continue
+                elif type == parse.EventTypes.THREAD:
+                    thread_f.write(p)
+                elif type == parse.EventTypes.PROCESS:
+                    process_f.write(p)
+                elif type == parse.EventTypes.SYSCALL:
+                    syscall_f.write(p)
+                elif type == parse.EventTypes.STATUS:
+                    logging.info('Found status')
+                    status_f.write(p)
+        except Exception as e:
+            log.info('Exception in writing log {}'.format(e))
 
 
 
@@ -117,6 +119,10 @@ class WinlogBeat:
         self.port = port
 
     def start(self):
+        while not queue.empty():
+            # Make sure queue is empty.
+            queue.get_nowait()
+
         app = start_flask()
         kwargs = {
             'debug': self.debug,
@@ -141,32 +147,31 @@ class WinlogBeat:
         return queue.qsize()
 
     def stop(self):
-        exit(0)
-        # if not self.main_process or not self.parse_process:
-        #     raise RuntimeError('Winlogbeatserver: Processes not started')
-        # try:
-        #     self.main_process.terminate()
-        #     self.parse_process.terminate()
-        #     time.sleep(5)
-        # except Exception as e:
-        #     log.error('Error occurred while joining Winlogbeat child processes: {}'.format(e))
-        #
-        # if self._pid_exists(self.main_process_pid):
-        #     try:
-        #         log.info('Winlogbeat main process still alive... Killing again...')
-        #         os.kill(self.main_process_pid, signal.SIGTERM)
-        #     except OSError:
-        #         log.warning('Winlogbeat main process PID does not exist')
-        #
-        # if self._pid_exists(self.parse_process_pid):
-        #     try:
-        #         log.info('Winlogbeat parse process still alive... Killing again...')
-        #         os.kill(self.parse_process_pid, signal.SIGTERM)
-        #     except OSError:
-        #         log.warning('Winlogbeat parse process PID does not exist')
-        #
-        # self.main_process_pid = None
-        # self.parse_process_pid = None
+        if not self.main_process or not self.parse_process:
+            raise RuntimeError('Winlogbeatserver: Processes not started')
+        try:
+            self.main_process.terminate()
+            self.parse_process.terminate()
+            time.sleep(5)
+        except Exception as e:
+            log.error('Error occurred while joining Winlogbeat child processes: {}'.format(e))
+
+        if self._pid_exists(self.main_process_pid):
+            try:
+                log.info('Winlogbeat main process still alive... Killing again...')
+                os.kill(self.main_process_pid, signal.SIGTERM)
+            except OSError:
+                log.warning('Winlogbeat main process PID does not exist')
+
+        if self._pid_exists(self.parse_process_pid):
+            try:
+                log.info('Winlogbeat parse process still alive... Killing again...')
+                os.kill(self.parse_process_pid, signal.SIGTERM)
+            except OSError:
+                log.warning('Winlogbeat parse process PID does not exist')
+
+        self.main_process_pid = None
+        self.parse_process_pid = None
 
     @staticmethod
     def _pid_exists(pid):
@@ -200,9 +205,16 @@ def main():
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
     
     wlb = WinlogBeat(args.out, debug=args.debug)
-    wlb.start()
-    while True:
-        time.sleep(5)
+    
+    try:
+        wlb.start()
+        while True:
+            time.sleep(5)
+    except Exception as e:
+        log.info(e)
+        log.info('Stopping server')
+        wlb.stop()
+        exit(0)
 
 
 if __name__ == '__main__':
