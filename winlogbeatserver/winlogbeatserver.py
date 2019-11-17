@@ -10,7 +10,7 @@ import logging
 import os
 import argparse
 import signal
-import io
+import sys
 
 log = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def write_log(queue_data, base_path):
             elif type == parse.EventTypes.SYSCALL:
                 syscall_f.write(p)
             elif type == parse.EventTypes.STATUS:
-                print(p)
+                logging.info('Found status')
                 status_f.write(p)
 
 
@@ -176,6 +176,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Server for capturing specific winlogbeat output')
     parser.add_argument('out', type=str,
                         help='Output directory')
+    parser.add_argument('--logfile', type=str,
+                        help='Enable debug')
     parser.add_argument('--debug', action='store_true',
                         help='Enable debug')
     args = parser.parse_args()
@@ -184,6 +186,12 @@ def parse_args():
 
 def main():
     args = parse_args()
+    
+    if args.logfile:
+        logging.basicConfig(filename=args.logfile, level=logging.DEBUG)
+    else:
+        logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    
     wlb = WinlogBeat(args.out, debug=args.debug)
     wlb.start()
 
