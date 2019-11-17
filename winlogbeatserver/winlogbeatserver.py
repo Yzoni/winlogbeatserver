@@ -73,7 +73,6 @@ def write_log(queue_data, base_path):
                 elif type == parse.EventTypes.STATUS:
                     logging.info('Found status')
                     status_f.write(p)
-            time.sleep(1)
             if time.time() - started_waiting > 60:
                 log.info('Wineventlog timeout waiting for data')
                 return
