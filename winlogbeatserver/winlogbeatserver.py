@@ -58,8 +58,9 @@ def write_log(queue_data, base_path):
         started_waiting = time.time()
         while True:
             if not queue_data.empty():
+                started_waiting = time.time()
                 d = queue_data.get_nowait()
-                log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue_data.qsize()))
+                # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue_data.qsize()))
                 type, p = parse.parse_csv(d)
                 if type == parse.EventTypes.UNKNOWN:
                     continue
@@ -160,13 +161,11 @@ class WinlogBeat:
         }
 
         self.main_process = Process(target=start_flask, args=({'queue_data': self.queue}, kwargs))
-        self.main_process.daemon = True
 
         self.main_process.start()
         log.info('Main process pid {}'.format(self.main_process.pid))
 
         self.parse_process = Process(target=write_log, args=(self.queue, self.output_dir))
-        self.parse_process.daemon = True
 
         self.parse_process.start()
         log.info('Parse process pid {}'.format(self.parse_process.pid))
@@ -249,7 +248,7 @@ def main():
         wlb.start()
         log.info('waiting')
         time.sleep(5)
-        wlb.stop()
+        # wlb.stop()
 
     except Exception as e:
         log.info(e)
