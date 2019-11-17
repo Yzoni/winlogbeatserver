@@ -12,7 +12,10 @@ import argparse
 import signal
 import sys
 import time
-
+import pylzma
+import struct
+from cStringIO import StringIO
+from werkzeug.serving import make_server
 log = logging.getLogger(__name__)
 
 
@@ -34,7 +37,10 @@ class Policy(Resource):
         return responses.ack
 
 
-queue = Queue()
+filename_thread = 'thread.csv'
+filename_process = 'process.csv'
+filename_syscall = 'process.csv'
+filename_status = 'process.csv'
 
 
 def write_log(queue_data, base_path):
@@ -43,10 +49,10 @@ def write_log(queue_data, base_path):
     if not os.path.exists(base_path):
         raise ValueError('Save directory does not exist: {}'.format(base_path))
 
-    with open(os.path.join(base_path, 'thread.csv'), 'w') as thread_f, \
-            open(os.path.join(base_path, 'process.csv'), 'w') as process_f, \
-            open(os.path.join(base_path, 'syscall.csv'), 'w') as syscall_f, \
-            open(os.path.join(base_path, 'status.csv'), 'w', buffering=0) as status_f:
+    with open(os.path.join(base_path, filename_thread), 'w') as thread_f, \
+            open(os.path.join(base_path, filename_process), 'w') as process_f, \
+            open(os.path.join(base_path, filename_syscall), 'w') as syscall_f, \
+            open(os.path.join(base_path, filename_status), 'w', buffering=0) as status_f:
         try:
             for d in iter(queue_data.get, None):
                 # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
@@ -67,12 +73,15 @@ def write_log(queue_data, base_path):
 
 
 class Bulk(Resource):
+    def __init__(self, queue_data):
+        self.queue_data = queue_data
+        
     def post(self):
         data = request.get_data().decode('utf-8').rstrip().split('\n')
         for d in data:
             # Do use the document 'header'
             if len(d) > 100:
-                queue.put(d)
+                self.queue_data.put(d)
 
 
 class Template(Resource):
@@ -91,8 +100,8 @@ class WinlogbeatNow(Resource):
         return responses.now
 
 
-def start_flask():
-    app = Flask(__name__)
+def start_flask(queue, kwargs):
+    app = Flask('Winlogbeatserver')
     api = Api(app)
 
     api.add_resource(WinlogbeatServer, '/')
@@ -100,8 +109,9 @@ def start_flask():
     api.add_resource(Policy, '/_ilm/policy/winlogbeat-7.4.2')
     api.add_resource(Template, '/_template/winlogbeat-7.4.2')
     api.add_resource(WinlogbeatNow, '/<winlogbeat-7.4.2-{now/d}-000001>')
-    api.add_resource(Bulk, '/_bulk')
-    return app
+    api.add_resource(Bulk, '/_bulk', resource_class_kwargs=queue)
+
+    return app.run(**kwargs)
 
 
 class WinlogBeat:
@@ -115,13 +125,13 @@ class WinlogBeat:
         self.output_dir = output_dir
         self.debug = debug
         self.port = port
+        self.queue = Queue()
 
     def start(self):
-        while not queue.empty():
+        while not self.queue.empty():
             # Make sure queue is empty.
-            queue.get_nowait()
+            self.queue.get_nowait()
 
-        app = start_flask()
         kwargs = {
             'debug': self.debug,
             'use_reloader': False,
@@ -129,20 +139,20 @@ class WinlogBeat:
             'port': self.port
         }
 
-        self.main_process = Process(target=app.run, kwargs=kwargs)
+        self.main_process = Process(target=start_flask,  args=({'queue_data': self.queue}, kwargs))
         self.main_process.daemon = True
 
         self.main_process.start()
         log.info('Main process pid {}'.format(self.main_process.pid))
 
-        self.parse_process = Process(target=write_log, args=(queue, self.output_dir))
+        self.parse_process = Process(target=write_log, args=(self.queue, self.output_dir))
         self.parse_process.daemon = True
 
         self.parse_process.start()
         log.info('Parse process pid {}'.format(self.parse_process.pid))
 
     def queue_size(self):
-        return queue.qsize()
+        return self.queue.qsize()
 
     def stop(self):
         if not self.main_process or not self.parse_process:
@@ -150,10 +160,14 @@ class WinlogBeat:
         try:
             self.main_process.terminate()
             self.parse_process.terminate()
+
+            self.main_process.join()
+            self.parse_process.join()
+
             time.sleep(5)
         except Exception as e:
             log.error('Error occurred while joining Winlogbeat child processes: {}'.format(e))
-        
+
         if self.main_process.is_alive():
             try:
                 log.info('Winlogbeat main process still alive... Killing again...')
@@ -167,6 +181,16 @@ class WinlogBeat:
                 os.kill(self.parse_process.pid, signal.SIGKILL)
             except OSError:
                 log.warning('Winlogbeat parse process PID does not exist')
+    
+    @staticmethod
+    def compress_compatible(data):
+        c = pylzma.compressfile(StringIO(data))
+        # LZMA header
+        result = c.read(5)
+        # size of uncompressed data
+        result += struct.pack('<Q', len(data))
+        # compressed data
+        return result + c.read()
 
     @staticmethod
     def _pid_exists(pid):
@@ -193,21 +217,23 @@ def parse_args():
 
 def main():
     args = parse_args()
-    
+
     if args.logfile:
         logging.basicConfig(filename=args.logfile, level=logging.DEBUG)
     else:
         logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    
+
     wlb = WinlogBeat(args.out, debug=args.debug)
-    
+
     try:
         wlb.start()
         time.sleep(5)
+        log.info('waiting')
         wlb.stop()
+        log.info('waiting3')
         while True:
             time.sleep(5)
-        
+
     except Exception as e:
         log.info(e)
         log.info('Stopping server')
