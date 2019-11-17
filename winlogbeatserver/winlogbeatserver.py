@@ -1,5 +1,4 @@
 # Requries python 2.7 with custom Werkzeug for '<' parsing in url
-
 from flask import request
 from flask import Flask
 from flask_restful import Resource, Api
@@ -16,6 +15,8 @@ import pylzma
 import struct
 from cStringIO import StringIO
 from werkzeug.serving import make_server
+import requests
+
 log = logging.getLogger(__name__)
 
 
@@ -39,8 +40,8 @@ class Policy(Resource):
 
 filename_thread = 'thread.csv'
 filename_process = 'process.csv'
-filename_syscall = 'process.csv'
-filename_status = 'process.csv'
+filename_syscall = 'syscall.csv'
+filename_status = 'status.csv'
 
 
 def write_log(queue_data, base_path):
@@ -53,9 +54,13 @@ def write_log(queue_data, base_path):
             open(os.path.join(base_path, filename_process), 'w') as process_f, \
             open(os.path.join(base_path, filename_syscall), 'w') as syscall_f, \
             open(os.path.join(base_path, filename_status), 'w', buffering=0) as status_f:
-        try:
-            for d in iter(queue_data.get, None):
-                # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue.qsize()))
+
+        started_waiting = time.time()
+        while True:
+            log.info('aaaa')
+            if not queue_data.empty():
+                d = queue_data.get_nowait()
+                # log.info('Processing Winlogbeat queue element, queue size: {}'.format(queue_data.qsize()))
                 type, p = parse.parse_csv(d)
                 if type == parse.EventTypes.UNKNOWN:
                     continue
@@ -68,14 +73,17 @@ def write_log(queue_data, base_path):
                 elif type == parse.EventTypes.STATUS:
                     logging.info('Found status')
                     status_f.write(p)
-        except Exception as e:
-            log.info('Exception in writing log {}'.format(e))
+            time.sleep(1)
+            if time.time() - started_waiting > 15:
+                log.info('Wineventlog timeout waiting for data')
+                return
+
 
 
 class Bulk(Resource):
     def __init__(self, queue_data):
         self.queue_data = queue_data
-        
+
     def post(self):
         data = request.get_data().decode('utf-8').rstrip().split('\n')
         for d in data:
@@ -100,6 +108,18 @@ class WinlogbeatNow(Resource):
         return responses.now
 
 
+class Shutdown(Resource):
+    def get(self):
+        self.shutdown_server()
+        return 'Server shutting down...'
+
+    def shutdown_server(self):
+        func = request.environ.get('werkzeug.server.shutdown')
+        if func is None:
+            raise RuntimeError('Not running with the Werkzeug Server')
+        func()
+
+
 def start_flask(queue, kwargs):
     app = Flask('Winlogbeatserver')
     api = Api(app)
@@ -110,6 +130,7 @@ def start_flask(queue, kwargs):
     api.add_resource(Template, '/_template/winlogbeat-7.4.2')
     api.add_resource(WinlogbeatNow, '/<winlogbeat-7.4.2-{now/d}-000001>')
     api.add_resource(Bulk, '/_bulk', resource_class_kwargs=queue)
+    api.add_resource(Shutdown, '/shutdown')
 
     return app.run(**kwargs)
 
@@ -139,7 +160,7 @@ class WinlogBeat:
             'port': self.port
         }
 
-        self.main_process = Process(target=start_flask,  args=({'queue_data': self.queue}, kwargs))
+        self.main_process = Process(target=start_flask, args=({'queue_data': self.queue}, kwargs))
         self.main_process.daemon = True
 
         self.main_process.start()
@@ -155,12 +176,12 @@ class WinlogBeat:
         return self.queue.qsize()
 
     def stop(self):
+        # 1337
+        requests.get('http://localhost:{}/shutdown'.format(self.port))
+
         if not self.main_process or not self.parse_process:
             raise RuntimeError('Winlogbeatserver: Processes not started')
         try:
-            self.main_process.terminate()
-            self.parse_process.terminate()
-
             self.main_process.join()
             self.parse_process.join()
 
@@ -181,7 +202,7 @@ class WinlogBeat:
                 os.kill(self.parse_process.pid, signal.SIGKILL)
             except OSError:
                 log.warning('Winlogbeat parse process PID does not exist')
-    
+
     @staticmethod
     def compress_compatible(data):
         c = pylzma.compressfile(StringIO(data))
@@ -227,12 +248,9 @@ def main():
 
     try:
         wlb.start()
-        time.sleep(5)
         log.info('waiting')
+        time.sleep(5)
         wlb.stop()
-        log.info('waiting3')
-        while True:
-            time.sleep(5)
 
     except Exception as e:
         log.info(e)
