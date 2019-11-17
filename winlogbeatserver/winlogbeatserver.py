@@ -125,10 +125,14 @@ class WinlogBeat:
         }
 
         self.main_process = Process(target=app.run, kwargs=kwargs)
+        self.main_process.daemon = True
+        
         self.main_process.start()
         self.main_process_pid = self.main_process.pid
 
         self.parse_process = Process(target=write_log, args=(queue, self.output_dir))
+        self.parse_process.daemon = True
+        
         self.parse_process.start()
         self.parse_process_pid = self.main_process.pid
 
@@ -139,10 +143,10 @@ class WinlogBeat:
         if not self.main_process or not self.parse_process:
             raise RuntimeError('Winlogbeatserver: Processes not started')
         try:
-            self.main_process.terminate()
-            self.parse_process.terminate()
+            self.main_process.join()
+            self.parse_process.join()
         except Exception as e:
-            log.error('Error occurred while terminating Winlogbeat child processes: {}'.format(e))
+            log.error('Error occurred while joining Winlogbeat child processes: {}'.format(e))
 
         if self._pid_exists(self.main_process_pid):
             try:
