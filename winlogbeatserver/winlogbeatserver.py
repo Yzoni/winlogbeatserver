@@ -1,21 +1,21 @@
 # Requries python 2.7 with custom Werkzeug for '<' parsing in url
-from flask import request
-from flask import Flask
-from flask_restful import Resource, Api
-import parse
-from multiprocessing import Process, Queue
-import responses
+import argparse
+import distutils
 import logging
 import os
-import argparse
 import signal
+import subprocess
 import sys
 import time
-import pylzma
-import struct
-from cStringIO import StringIO
-from werkzeug.serving import make_server
+from multiprocessing import Process, Queue
+
 import requests
+from flask import Flask
+from flask import request
+from flask_restful import Resource, Api
+
+import parse
+import responses
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +80,6 @@ def write_log(queue_data, base_path):
             if time.time() - started_waiting > 60:
                 log.info('Wineventlog timeout waiting for data')
                 return
-
 
 
 class Bulk(Resource):
@@ -176,7 +175,7 @@ class WinlogBeat:
     def queue_size(self):
         return self.queue.qsize()
 
-    def stop(self):
+    def stop(self, compress=False):
         # 1337
         requests.get('http://localhost:{}/shutdown'.format(self.port))
 
@@ -204,15 +203,21 @@ class WinlogBeat:
             except OSError:
                 log.warning('Winlogbeat parse process PID does not exist')
 
+        if compress:
+            self.compress(filename_thread)
+            self.compress(filename_process)
+            self.compress(filename_syscall)
+            self.compress(filename_status)
+
     @staticmethod
-    def compress_compatible(data):
-        c = pylzma.compressfile(StringIO(data))
-        # LZMA header
-        result = c.read(5)
-        # size of uncompressed data
-        result += struct.pack('<Q', len(data))
-        # compressed data
-        return result + c.read()
+    def compress(filename):
+        xz_bin = distutils.spawn.find_executable("xz")
+        if xz_bin:
+            status = subprocess.check_call([xz_bin, filename])
+            if status != 0:
+                log.error('Eventlog compressions of {} failed'.format(filename))
+        else:
+            log.warning('Cannot compress eventlog file, unable to find xz binary utility.')
 
     @staticmethod
     def _pid_exists(pid):
