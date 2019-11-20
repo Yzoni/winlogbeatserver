@@ -50,10 +50,15 @@ def write_log(queue_data, base_path):
     if not os.path.exists(base_path):
         raise ValueError('Save directory does not exist: {}'.format(base_path))
 
-    with open(os.path.join(base_path, filename_thread), 'w') as thread_f, \
-            open(os.path.join(base_path, filename_process), 'w') as process_f, \
-            open(os.path.join(base_path, filename_syscall), 'w') as syscall_f, \
-            open(os.path.join(base_path, filename_status), 'w', buffering=0) as status_f:
+    path_thread = os.path.join(base_path, filename_thread)
+    path_process = os.path.join(base_path, filename_process)
+    path_syscall = os.path.join(base_path, filename_syscall)
+    path_status = os.path.join(base_path, filename_status)
+    
+    with open(path_thread, 'w') as thread_f, \
+            open(path_process, 'w') as process_f, \
+            open(path_syscall, 'w') as syscall_f, \
+            open(path_status, 'w', buffering=0) as status_f:
 
         started_waiting = time.time()
         logcount = 0
@@ -203,11 +208,16 @@ class WinlogBeat:
             except OSError:
                 log.warning('Winlogbeat parse process PID does not exist')
 
+        path_thread = os.path.join(self.output_dir, filename_thread)
+        path_process = os.path.join(self.output_dir, filename_process)
+        path_syscall = os.path.join(self.output_dir, filename_syscall)
+        path_status = os.path.join(self.output_dir, filename_status)
+
         if compress:
-            self.compress(filename_thread)
-            self.compress(filename_process)
-            self.compress(filename_syscall)
-            self.compress(filename_status)
+            self.compress(path_thread)
+            self.compress(path_process)
+            self.compress(path_syscall)
+            self.compress(path_status)
 
     @staticmethod
     def compress(filename):
