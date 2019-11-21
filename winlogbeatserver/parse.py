@@ -25,10 +25,11 @@ def parse_csv(data):
         csv_row = '{}'.format(datatime)
         opcode = int(event_data['opcode'])
         if opcode == EventTypes.SYSCALL:
+            pid = event_data.get('ppid')
             pid = event_data.get('pid')
             tid = event_data.get('tid')
             syscall = event_data.get('syscall')
-            csv_row += ',{},{},{}\n'.format(pid, tid, syscall)
+            csv_row += ',{},{},{},{}\n'.format(ppid, pid, tid, syscall)
             return opcode, csv_row
         elif opcode == EventTypes.THREAD:
             try:
