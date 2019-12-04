@@ -182,7 +182,10 @@ class WinlogBeat:
 
     def stop(self, compress=False):
         # 1337
-        requests.get('http://localhost:{}/shutdown'.format(self.port))
+        try:
+            requests.get('http://localhost:{}/shutdown'.format(self.port))
+        except requests.ConnectionError:
+            log.error('Unable to kill flask server by shutdown endpoint. Already dead?')
 
         if not self.main_process or not self.parse_process:
             raise RuntimeError('Winlogbeatserver: Processes not started')
